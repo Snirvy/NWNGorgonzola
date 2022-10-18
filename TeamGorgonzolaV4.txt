@@ -1,0 +1,336 @@
+#include "NW_I0_GENERIC"
+#include "our_constants"
+
+// Called every time that the AI needs to take a combat decision. The default is
+// a call to the NWN DetermineCombatRound.
+void T2_DetermineCombatRound( object oIntruder = OBJECT_INVALID, int nAI_Difficulty = 10 )
+{
+    DetermineCombatRound( oIntruder, nAI_Difficulty );
+}
+
+// Called every heartbeat (i.e., every six seconds).
+void T2_HeartBeat()
+{
+
+    //get portal
+    object oPortal = GetObjectByTag("PORTAL_BLUE_4");
+
+    //store variables in portal
+    string sBackupMid = GetLocalString( oPortal, "BACKUP" );
+    string sBackupRight = GetLocalString( oPortal, "BACKUP_RIGHT" );
+    string sBackupLeft = GetLocalString( oPortal, "BACKUP_LEFT" );
+
+    //get self color
+    string sColor = GetLocalString( OBJECT_SELF, "COLOR" );
+
+
+
+
+    //Healing self occurs during combat
+
+    if (GetPercentageHPLoss(OBJECT_SELF) <= 99){
+        TalentHealingSelf();
+        SpeakString("I need healing!", TALKVOLUME_SHOUT);
+
+    }
+
+    if (GetIsInCombat())
+        return;
+
+
+    //Master shouts how many people approach doubler
+
+    if (IsMaster()){
+
+
+        string sBackupMid = "True";
+        object oDoubler = GetObjectByTag(WpDoubler());
+        if (!GetIsObjectValid(oDoubler))
+            return;
+
+        int iNumEnemies = CheckEnemyGroupingOnTarget( oDoubler, 10.0);
+        int iNumAllies = CheckFriendlyFireOnTarget(oDoubler, 10.0);
+
+        //Requesting backup
+        if (iNumEnemies >= iNumAllies){
+            SpeakString( "Requesting backup at mid!", TALKVOLUME_SHOUT);
+            sBackupMid = "True";
+
+                                    }
+        else {
+            sBackupMid = "False";
+        }
+
+
+        SetLocalString(oPortal, "BACKUP", sBackupMid);
+
+
+    }
+
+
+    if (IsWizardLeft()){
+
+        string sBackupLeft = "False";
+        object oLeftAltar = GetObjectByTag("WP_ALTAR_BLUE_2");
+        if (!GetIsObjectValid(oLeftAltar))
+            return;
+
+
+        int iNumEnemies = CheckEnemyGroupingOnTarget( oLeftAltar, 10.0);
+        int iNumAllies = CheckFriendlyFireOnTarget(oLeftAltar, 10.0);
+
+        //Requesting backup
+        if (iNumEnemies > iNumAllies){
+            SpeakString( "Requesting backup at left altar!", TALKVOLUME_SHOUT);
+            sBackupLeft = "True";
+
+                                    }
+        else {
+            sBackupLeft = "False";
+        }
+
+
+        SetLocalString(oPortal, "BACKUP_LEFT", sBackupLeft);
+
+
+    }
+
+    string sTarget = GetLocalString( OBJECT_SELF, "TARGET" );
+    if (sTarget == "")
+        return;
+
+    object oTarget = GetObjectByTag( sTarget );
+    if (!GetIsObjectValid( oTarget ))
+        return;
+
+    // If there is a member of my own team close to the target and closer than me,
+    // and no enemy is closer and this other member is not in combat and
+    // has the same target, then choose a new target.
+    float fToTarget = GetDistanceToObject( oTarget );
+    int i = 1;
+    int bNewTarget = FALSE;
+    object oCreature = GetNearestObjectToLocation( OBJECT_TYPE_CREATURE, GetLocation( oTarget ), i );
+    while (GetIsObjectValid( oCreature ))
+    {
+        if (GetLocation( oCreature ) == GetLocation( OBJECT_SELF ))
+            break;
+        if (GetDistanceBetween( oCreature, oTarget ) > fToTarget)
+            break;
+        if (GetDistanceBetween( oCreature, oTarget ) > 5.0)
+            break;
+        if (!SameTeam( oCreature ))
+            break;
+        if (GetIsInCombat( oCreature ))
+            break;
+        if (GetLocalString( oCreature, "TARGET" ) == sTarget)
+        {
+            bNewTarget = TRUE;
+            break;
+        }
+        ++i;
+        oCreature = GetNearestObjectToLocation( OBJECT_TYPE_CREATURE, GetLocation( oTarget ), i );
+    }
+
+    if (bNewTarget)
+    {
+
+             //Wizard left
+
+        if(IsWizardLeft())
+        {
+
+            //Retrieve string from portal object
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            else{
+
+            sTarget = "WP_ALTAR_BLUE_2";
+            }
+        }
+
+        //Wizard right
+
+        if(IsWizardRight()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            else{
+            sTarget = "WP_ALTAR_BLUE_1";
+                 }
+
+        }
+
+        //Cleric left
+        if(IsClericLeft()){
+            sTarget = "WP_ALTAR_BLUE_2";
+        }
+
+        //Cleric right
+        if(IsClericRight()){
+            sTarget = "WP_ALTAR_BLUE_1";
+        }
+
+        //Fighter left
+
+        if(IsFighterLeft()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            if (GetLocalString( oPortal, "BACKUP_LEFT" ) == "True"){
+                SpeakString("Coming to left altar!", TALKVOLUME_SHOUT);
+                sTarget = "WP_ALTAR_BLUE_2";
+            }
+
+            else{
+
+                sTarget = "WP_DOUBLER";
+                }
+        }
+
+        //Fighter right
+        if(IsFighterRight()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            if (GetLocalString( oPortal, "BACKUP_LEFT" ) == "True"){
+                SpeakString("Coming to left altar!", TALKVOLUME_SHOUT);
+                sTarget = "WP_ALTAR_BLUE_2";
+            }
+
+
+            sTarget = "WP_DOUBLER";
+        }
+
+        //Master
+        if(IsMaster()){
+            sTarget = "WP_DOUBLER";
+        }
+
+        SetLocalString( OBJECT_SELF, "TARGET", sTarget );
+        oTarget = GetObjectByTag( sTarget );
+        if (!GetIsObjectValid( oTarget ))
+            return;
+        fToTarget = GetDistanceToObject( oTarget );
+    }
+
+    if (fToTarget > 0.5)
+        ActionMoveToLocation( GetLocation( oTarget ), TRUE );
+
+    return;
+}
+
+// Called when the NPC is spawned.
+void T2_Spawn()
+{
+
+    string sTarget = "WP_DOUBLER";
+    string sPriority = "WP_DOUBLER";
+     //Wizard left
+
+    if(IsWizardLeft())
+       {
+
+        sTarget = "WP_ALTAR_BLUE_2";
+        }
+
+        //Wizard right
+
+    if(IsWizardRight()){
+        sTarget = "WP_ALTAR_BLUE_1";
+        }
+
+        //Cleric left
+    if(IsClericLeft()){
+        sTarget = "WP_ALTAR_BLUE_2";
+        }
+
+        //Cleric right
+    if(IsClericRight()){
+        sTarget = "WP_ALTAR_BLUE_1";
+        }
+
+        //Fighter left
+
+    if(IsFighterLeft()){
+        sTarget = "WP_DOUBLER";
+        }
+
+        //Fighter right
+    if(IsFighterRight()){
+        sTarget = "WP_DOUBLER";
+        }
+
+        //Master
+    if(IsMaster()){
+        sTarget = "WP_DOUBLER";
+        }
+
+    SetLocalString( OBJECT_SELF, "TARGET", sTarget );
+    ActionMoveToLocation( GetLocation( GetObjectByTag( sTarget ) ), TRUE );
+}
+
+// This function is called when certain events take place, after the standard
+// NWN handling of these events has been performed.
+void T2_UserDefined( int Event )
+{
+    switch (Event)
+    {
+        // The NPC has just been attacked.
+        case EVENT_ATTACKED:
+            break;
+
+        // The NPC was damaged.
+        case EVENT_DAMAGED:
+            break;
+
+        // At the end of one round of combat.
+        case EVENT_END_COMBAT_ROUND:
+            break;
+
+        // Every heartbeat (i.e., every six seconds).
+        case EVENT_HEARTBEAT:
+            T2_HeartBeat();
+            break;
+
+        // Whenever the NPC perceives a new creature.
+        case EVENT_PERCEIVE:
+            break;
+
+        // When a spell is cast at the NPC.
+        case EVENT_SPELL_CAST_AT:
+            break;
+
+        // Whenever the NPC's inventory is disturbed.
+        case EVENT_DISTURBED:
+            break;
+
+        // Whenever the NPC dies.
+        case EVENT_DEATH:
+            break;
+
+        // When the NPC has just been spawned.
+        case EVENT_SPAWN:
+            T2_Spawn();
+            break;
+    }
+
+    return;
+}
+
+// Called when the fight starts, just before the initial spawning.
+void T2_Initialize( string sColor )
+{
+    SetTeamName( sColor, "Default-" + GetStringLowerCase( sColor ) );
+}
