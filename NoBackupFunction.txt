@@ -1,0 +1,483 @@
+#include "NW_I0_GENERIC"
+#include "our_constants"
+
+// Called every time that the AI needs to take a combat decision. The default is
+// a call to the NWN DetermineCombatRound.
+void T3_DetermineCombatRound( object oIntruder = OBJECT_INVALID, int nAI_Difficulty = 10 )
+{
+    DetermineCombatRound( oIntruder, nAI_Difficulty );
+}
+
+// Called every heartbeat (i.e., every six seconds).
+void T3_HeartBeat()
+{
+
+    //get portal
+    object oPortal = GetObjectByTag("PORTAL_BLUE_4");
+
+    //store variables in portal
+    string sBackupMid = GetLocalString( oPortal, "BACKUP" );
+    string sInvadeLeft = GetLocalString(oPortal, "INVADE_LEFT");
+    string sInvadeRight = GetLocalString(oPortal, "INVADE_RIGHT");
+
+    //get self color
+    string sColor = GetLocalString( OBJECT_SELF, "COLOR" );
+
+
+
+
+    //Healing self occurs during combat
+
+    if (GetPercentageHPLoss(OBJECT_SELF) <= 99){
+        TalentHealingSelf();
+        SpeakString("I need healing!", TALKVOLUME_SHOUT);
+
+    }
+
+    if (GetIsInCombat())
+        return;
+
+
+    //Master shouts how many people approach doubler
+
+    if (IsMaster())
+    {
+
+
+        //Master controls the team by checking which altars to attack or defend
+        string sBackupMid = "True";
+        string sInvadeLeft = "False";
+        object oDoubler = GetObjectByTag(WpDoubler());
+
+        if (sColor == "BLUE")
+        {
+            object oInvadeLeft = GetObjectByTag("WP_ALTAR_RED_1");
+            object oInvadeRight = GetObjectByTag("WP_ALTAR_RED_2");
+        }
+
+        if (sColor == "RED")
+        {
+          object oInvadeLeft = GetObjectByTag("WP_ALTAR_BLUE_1");
+          object oInvadeRight = GetObjectByTag("WP_ALTAR_BLUE_2");
+
+        }
+
+
+
+        if (!GetIsObjectValid(oDoubler))
+            return;
+
+        int iNumEnemies = CheckEnemyGroupingOnTarget( oDoubler, 10.0);
+        int iNumAllies = CheckFriendlyFireOnTarget(oDoubler, 10.0);
+
+
+
+        //Requesting backup at mid
+        if (iNumEnemies >= iNumAllies)
+        {
+            SpeakString( "Requesting backup at mid!", TALKVOLUME_SHOUT);
+            sBackupMid = "True";
+
+        }
+        else
+        {
+            sBackupMid = "False";
+        }
+
+
+        SetLocalString(oPortal, "BACKUP", sBackupMid);
+
+
+        //If mid is taken ,  initiate attack on opponent altars
+        if(sBackupMid == "False")
+
+        {
+
+            SpeakString( "Attack the left flank!", TALKVOLUME_SHOUT);
+            SpeakString( "Attack the right flank!",TALKVOLUME_SHOUT);
+            sInvadeLeft = "True";
+            sInvadeRight = "True";
+
+        }
+
+        else
+        {
+            sInvadeLeft = "False";
+            sInvadeRight = "False";
+        }
+
+        SetLocalString(oPortal, "INVADE_LEFT", sInvadeLeft);
+        SetLocalString(oPortal, "INVADE_RIGHT", sInvadeRight);
+
+    }
+
+
+
+
+
+    string sTarget = GetLocalString( OBJECT_SELF, "TARGET" );
+    if (sTarget == "")
+        return;
+
+    object oTarget = GetObjectByTag( sTarget );
+    if (!GetIsObjectValid( oTarget ))
+        return;
+
+    // If there is a member of my own team close to the target and closer than me,
+    // and no enemy is closer and this other member is not in combat and
+    // has the same target, then choose a new target.
+    float fToTarget = GetDistanceToObject( oTarget );
+    int i = 1;
+    int bNewTarget = FALSE;
+    object oCreature = GetNearestObjectToLocation( OBJECT_TYPE_CREATURE, GetLocation( oTarget ), i );
+    while (GetIsObjectValid( oCreature ))
+    {
+        if (GetLocation( oCreature ) == GetLocation( OBJECT_SELF ))
+            break;
+        if (GetDistanceBetween( oCreature, oTarget ) > fToTarget)
+            break;
+        if (GetDistanceBetween( oCreature, oTarget ) > 5.0)
+            break;
+        if (!SameTeam( oCreature ))
+            break;
+        if (GetIsInCombat( oCreature ))
+            break;
+        if (GetLocalString( oCreature, "TARGET" ) == sTarget)
+        {
+            bNewTarget = TRUE;
+            break;
+        }
+        ++i;
+        oCreature = GetNearestObjectToLocation( OBJECT_TYPE_CREATURE, GetLocation( oTarget ), i );
+    }
+
+    if (bNewTarget)
+    {
+
+             //Wizard left
+
+        if(IsWizardLeft())
+        {
+
+            //Retrieve string from portal object
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            else{
+
+            sTarget = "WP_ALTAR_BLUE_2";
+            }
+        }
+
+        //Wizard right
+
+        if(IsWizardRight()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+            else{
+                if (sColor == "BLUE")
+                    {
+                        sTarget = "WP_ALTAR_BLUE_1";
+                    }
+                if (sColor == "RED")
+                    {
+                        sTarget = "WP_ALTAR_RED_1";
+                    }
+
+                }
+
+        }
+
+        //Cleric left
+        if(IsClericLeft()){
+
+            if (GetLocalString(oPortal,"INVADE_LEFT") == "True")
+            {
+                SpeakString("Attacking their left altar!",TALKVOLUME_SHOUT);
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_RED_1";
+                }
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_BLUE_1";
+                }
+
+            }
+            else
+            {
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_BLUE_2";
+                }
+
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_RED_2";
+                }
+
+            }
+        }
+
+        //Cleric right
+        if(IsClericRight()){
+            if (GetLocalString(oPortal,"INVADE_RIGHT") == "True")
+            {
+                SpeakString("Attacking their right altar!",TALKVOLUME_SHOUT);
+
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_RED_2";
+                }
+
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_BLUE_2";
+                }
+
+            }
+            else
+            {
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_BLUE_1";
+                }
+
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_RED_1";
+                }
+
+            }
+        }
+
+        //Fighter left
+
+        if(IsFighterLeft()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+
+
+            if (GetLocalString(oPortal,"INVADE_LEFT") == "True"){
+                SpeakString("Attacking their left altar!",TALKVOLUME_SHOUT);
+
+
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_RED_1";
+                }
+
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_BLUE_1";
+                }
+
+            }
+
+            else{
+
+                sTarget = "WP_DOUBLER";
+                }
+        }
+
+        //Fighter right
+        if(IsFighterRight()){
+
+            if (GetLocalString( oPortal, "BACKUP" ) == "True"){
+                SpeakString("Coming to mid!", TALKVOLUME_SHOUT);
+                sTarget = "WP_DOUBLER";
+            }
+
+
+
+            if (GetLocalString(oPortal,"INVADE_RIGHT") == "True"){
+                SpeakString("Attacking their right altar!",TALKVOLUME_SHOUT);
+
+
+                if (sColor == "BLUE")
+                {
+                    sTarget = "WP_ALTAR_RED_1";
+                }
+
+                if (sColor == "RED")
+                {
+                    sTarget = "WP_ALTAR_BLUE_1";
+                }
+
+            }
+
+
+            sTarget = "WP_DOUBLER";
+        }
+
+        //Master
+        if(IsMaster()){
+            sTarget = "WP_DOUBLER";
+        }
+
+        SetLocalString( OBJECT_SELF, "TARGET", sTarget );
+        oTarget = GetObjectByTag( sTarget );
+        if (!GetIsObjectValid( oTarget ))
+            return;
+        fToTarget = GetDistanceToObject( oTarget );
+    }
+
+    if (fToTarget > 0.5)
+        ActionMoveToLocation( GetLocation( oTarget ), TRUE );
+
+    return;
+}
+
+// Called when the NPC is spawned.
+void T3_Spawn()
+{
+    string sColor = GetLocalString( OBJECT_SELF, "COLOR" );
+    string sTarget = "WP_DOUBLER";
+    string sPriority = "WP_DOUBLER";
+     //Wizard left
+
+    if(IsWizardLeft())
+       {
+        if (sColor == "BLUE")
+        {
+            sTarget = "WP_ALTAR_BLUE_2";
+        }
+
+        if (sColor == "RED")
+        {
+            sTarget = "WP_ALTAR_RED_2";
+        }
+
+        }
+
+        //Wizard right
+
+    if(IsWizardRight())
+       {
+        if (sColor == "BLUE")
+        {
+            sTarget = "WP_ALTAR_BLUE_1";
+        }
+
+        if (sColor == "RED")
+        {
+            sTarget = "WP_ALTAR_RED_1";
+        }
+
+        }
+
+
+
+        //Cleric left
+    if(IsClericLeft())
+       {
+        if (sColor == "BLUE")
+        {
+            sTarget = "WP_ALTAR_BLUE_2";
+        }
+
+        if (sColor == "RED")
+        {
+            sTarget = "WP_ALTAR_RED_2";
+        }
+
+        }
+
+        //Cleric right
+    if(IsClericRight())
+       {
+        if (sColor == "BLUE")
+        {
+            sTarget = "WP_ALTAR_BLUE_1";
+        }
+
+        if (sColor == "RED")
+        {
+            sTarget = "WP_ALTAR_RED_1";
+        }
+
+        }
+
+        //Fighter left
+
+    if(IsFighterLeft()){
+        sTarget = "WP_DOUBLER";
+        }
+
+        //Fighter right
+    if(IsFighterRight()){
+        sTarget = "WP_DOUBLER";
+        }
+
+        //Master
+    if(IsMaster()){
+        sTarget = "WP_DOUBLER";
+        }
+
+    SetLocalString( OBJECT_SELF, "TARGET", sTarget );
+    ActionMoveToLocation( GetLocation( GetObjectByTag( sTarget ) ), TRUE );
+}
+
+// This function is called when certain events take place, after the standard
+// NWN handling of these events has been performed.
+void T3_UserDefined( int Event )
+{
+    switch (Event)
+    {
+        // The NPC has just been attacked.
+        case EVENT_ATTACKED:
+            break;
+
+        // The NPC was damaged.
+        case EVENT_DAMAGED:
+            break;
+
+        // At the end of one round of combat.
+        case EVENT_END_COMBAT_ROUND:
+            break;
+
+        // Every heartbeat (i.e., every six seconds).
+        case EVENT_HEARTBEAT:
+            T3_HeartBeat();
+            break;
+
+        // Whenever the NPC perceives a new creature.
+        case EVENT_PERCEIVE:
+            break;
+
+        // When a spell is cast at the NPC.
+        case EVENT_SPELL_CAST_AT:
+            break;
+
+        // Whenever the NPC's inventory is disturbed.
+        case EVENT_DISTURBED:
+            break;
+
+        // Whenever the NPC dies.
+        case EVENT_DEATH:
+            break;
+
+        // When the NPC has just been spawned.
+        case EVENT_SPAWN:
+            T3_Spawn();
+            break;
+    }
+
+    return;
+}
+
+// Called when the fight starts, just before the initial spawning.
+void T3_Initialize( string sColor )
+{
+    SetTeamName( sColor, "Default-" + GetStringLowerCase( sColor ) );
+}
